@@ -31,7 +31,7 @@ A powerful integration of WordFence CLI with HestiaCP, providing advanced WordPr
 
 1. Download the installation script:
 ```bash
-wget https://raw.githubusercontent.com/yourusername/hestia-wordfence-cli/main/wf-cli-install.sh
+wget https://raw.githubusercontent.com/isscbta/hestiacp-wordfence-cli/refs/heads/main/wf-cli-install.sh
 ```
 
 2. Make the script executable:
