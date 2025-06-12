@@ -1,0 +1,92 @@
+#!/bin/bash
+
+# Check if domain name is provided
+if [ -z "$1" ]; then
+    echo "Error: Domain name is required"
+    exit 1
+fi
+
+# Get the domain name
+DOMAIN=$1
+
+# Shift off the first argument (domain name) to process additional flags
+shift
+
+# Use v-search-domain-owner to find the user associated with the domain
+USER=$(v-search-domain-owner $DOMAIN)
+if [ -z "$USER" ]; then
+    echo "Error: Unable to find user for domain $DOMAIN"
+    exit 1
+fi
+
+# Use v-get-database-credentials-of-domain to extract database connection details
+DB_CREDENTIALS=$(v-get-database-credentials-of-domain "$DOMAIN")
+if [ $? -ne 0 ] || [ -z "$DB_CREDENTIALS" ]; then
+    echo "Error: Unable to retrieve database credentials for $DOMAIN"
+    exit 1
+fi
+
+# Set MySQL port and host
+DB_PORT=3306
+DB_HOST='localhost'
+
+# Parse the credentials
+DB_NAME=$(echo "$DB_CREDENTIALS" | grep '^DATABASE_NAME=' | cut -d '=' -f2)
+DB_USER=$(echo "$DB_CREDENTIALS" | grep '^DATABASE_USERNAME=' | cut -d '=' -f2)
+DB_PASSWORD=$(echo "$DB_CREDENTIALS" | grep '^DATABASE_PASSWORD=' | cut -d '=' -f2)
+WP_CONFIG=$(echo "$DB_CREDENTIALS" | grep '^CONFIG_PATH=' | cut -d '=' -f2)
+DB_PREFIX=$(grep "\$table_prefix" "$WP_CONFIG" | cut -d "'" -f 2)
+
+# Validate extracted values
+if [ -z "$DB_NAME" ] || [ -z "$DB_USER" ] || [ -z "$DB_PASSWORD" ] || [ -z "$DB_HOST" ] || [ -z "$DB_PREFIX" ]; then
+    echo "Error: Unable to extract all necessary database credentials"
+    exit 1
+fi
+
+# Display extracted database information
+echo "=== Database Connection Details ==="
+echo "Database Name: $DB_NAME"
+echo "Database User: $DB_USER"
+echo "Database Password: $DB_PASSWORD"
+echo "Database Host: $DB_HOST"
+echo "Database Port: $DB_PORT"
+echo "Table Prefix: $DB_PREFIX"
+echo "WordPress Config: $WP_CONFIG"
+echo "================================"
+
+# Construct the scan path using HestiaCP's directory structure
+SCAN="/home/$USER/web/$DOMAIN/public_html"
+
+echo "Starting Wordfence database scan for $DOMAIN"
+
+# Run Wordfence DB scan using Docker
+docker run -it \
+    --network=host \
+    -v /usr/local/hestia/wfcli-conf:/root/.config/wordfence \
+    -v "$SCAN":"$SCAN" \
+    -e WFCLI_DB_PASSWORD="$DB_PASSWORD" \
+    wordfence-cli:latest \
+    db-scan \
+    -u "$DB_USER" \
+    -H "$DB_HOST" \
+    -D "$DB_NAME" \
+    --port "$DB_PORT" \
+    --prefix "$DB_PREFIX" \
+    --output-format csv \
+    --output-path "$SCAN/wordfence-cli-db-scan.csv" \
+    "$@"
+
+# Clean up any exited Wordfence containers
+docker container rm $(docker container ls -a | grep 'wordfence' | awk '{print $1}') > /dev/null 2>&1
+
+# Display scan results
+if [ -s "$SCAN/wordfence-cli-db-scan.csv" ]; then
+    echo "=== Database scan results for $DOMAIN ==="
+    cat "$SCAN/wordfence-cli-db-scan.csv"
+    echo "======"
+    echo "The file with the complete scan results can be found at: $SCAN/wordfence-cli-db-scan.csv"
+    chown "$USER:$USER" "$SCAN/wordfence-cli-db-scan.csv"
+else
+    echo "No issues were found in the database for $DOMAIN."
+    rm "$SCAN/wordfence-cli-db-scan.csv"
+fi

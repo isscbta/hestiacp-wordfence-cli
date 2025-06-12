@@ -1,0 +1,55 @@
+#!/bin/bash
+
+# Check if scan path is provided
+if [ -z "$1" ]; then
+    echo "Error: Scan path is required"
+    exit 1
+fi
+
+# Get the scan path
+SCAN="$1"
+
+# Check if path exists
+if [ ! -d "$SCAN" ]; then
+    echo "Error: Path does not exist: $SCAN"
+    exit 1
+fi
+
+# Get the final directory name from the path
+BASENAME=$(basename "$SCAN")
+
+# Output file location
+OUTPUT_FILE="$SCAN/wordfence-cli-scan.csv"
+
+echo "Starting Wordfence malware scan at $SCAN"
+
+# Change directory to where Docker commands can be executed
+if [ -d /usr/local/hestia/wordfence-cli ]; then
+    cd /usr/local/hestia/wordfence-cli
+fi
+
+# Run Wordfence scan using Docker
+docker run -it \
+    -v /var/www:/var/www \
+    -v /usr/local/hestia/wfcli-conf/wordfence-cli.ini:/root/.config/wordfence/wordfence-cli.ini \
+    -v "$SCAN":"$SCAN" \
+    wordfence-cli:latest \
+    malware-scan "$SCAN" \
+    --match-engine vectorscan \
+    --output-format csv \
+    --output-path "$OUTPUT_FILE" \
+    "${@:2}"
+
+# Remove leftover containers
+docker container rm $(docker container ls -a | grep 'wordfence' | awk '{print $1}') > /dev/null 2>&1
+
+# Display suspicious files
+if [ -s "$OUTPUT_FILE" ]; then
+    echo "=== Infected files found in $SCAN ==="
+    cat "$OUTPUT_FILE"
+    echo "======"
+    echo "The file with the list of all infected files can be found at: $OUTPUT_FILE"
+else
+    echo "No infected files were found in $SCAN."
+    rm "$OUTPUT_FILE"
+fi
