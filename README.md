@@ -23,8 +23,6 @@ A powerful integration of WordFence CLI with HestiaCP, providing advanced WordPr
 - Docker
 - Debian-based system (Debian 10 or newer)
 - Root or sudo access
-- Minimum 1GB of free disk space
-- Minimum 1GB of RAM (2GB recommended)
 - Active internet connection
 
 ## 🚀 Installation
