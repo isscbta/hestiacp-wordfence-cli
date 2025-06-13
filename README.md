@@ -1,6 +1,6 @@
 # 🛡️ WordFence CLI for HestiaCP
 
-A powerful integration of WordFence CLI with HestiaCP, providing advanced WordPress security scanning capabilities directly from your control panel.
+A powerful integration of WordFence CLI with HestiaCP, providing advanced WordPress security scanning capabilities while using HestiaCP.
 
 ## 📸 Screenshots
 
